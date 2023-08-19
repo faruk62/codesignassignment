@@ -3,20 +3,29 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
-
 from .models import Palette, PaletteColor, FavoritePalette, PaletteRevision
 from .serializers import PaletteSerializer, PaletteColorSerializer, FavoritePaletteSerializer, PaletteRevisionSerializer
+from rest_framework.permissions import AllowAny
 
 class PaletteViewSet(viewsets.ModelViewSet):
     queryset = Palette.objects.all()
     serializer_class = PaletteSerializer
-    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        # If the user is trying to list palettes and they're not authenticated, we'll show them only public palettes
+        if self.action == 'list' and not self.request.user.is_authenticated:
+            self.permission_classes = [AllowAny]
+        else:
+            self.permission_classes = [IsAuthenticated]
+        return super(PaletteViewSet, self).get_permissions()
 
     def get_queryset(self):
-        # If the request is to get public palettes, filter accordingly
-        if 'public' in self.request.query_params:
+        # If the user is authenticated, show them all their palettes
+        if self.request.user.is_authenticated:
+            return Palette.objects.filter(user=self.request.user)
+        # If the user is not authenticated, show them only public palettes
+        else:
             return Palette.objects.filter(is_public=True)
-        return super().get_queryset()
 
     def perform_create(self, serializer):
         # Assign the current user to the palette being created
